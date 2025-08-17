@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MRR Dropdown · Demos (CDN)</title>
+  <!-- CSS via CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/style-min-v2.css" />
+  <style>
+    body{font-family:system-ui, sans-serif; background:#f9fafc; color:#222; margin:0; padding:2rem;}
+    h1,h2{color:#2f66ff}
+    section{margin-bottom:2rem; padding:1rem; background:#fff; border:1px solid #e5e5e5; border-radius:8px}
+    code{background:#f2f2f2; padding:2px 6px; border-radius:4px}
+    .log{max-height:150px;overflow:auto;background:#f7f7f7;border:1px solid #ddd;padding:6px;font-size:13px}
+    button{margin:4px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#fff}
+  </style>
+</head>
+<body>
+  <h1>MRR Dropdown — Demos (CDN)</h1>
+
+  <section>
+    <h2>Single</h2>
+    <select name="order" id="order" class="mrr-dropdown" data-placeholder="Selecione">
+      <option value="">Selecione</option>
+      <option value="relevancia">Relevância</option>
+      <option value="avaliacao">Melhor avaliação</option>
+      <option value="novidades">Mais recentes</option>
+    </select>
+  </section>
+
+  <section>
+    <h2>Múltiplo (+N)</h2>
+    <select name="filtros[]" id="filtros" class="mrr-dropdown" multiple data-placeholder="Selecione filtros">
+      <option value="a">A</option>
+      <option value="b">B</option>
+      <option value="c">C</option>
+      <option value="d" disabled>D (desabilitado)</option>
+      <option value="e">E (longo rótulo)</option>
+    </select>
+  </section>
+
+  <section>
+    <h2>Com &lt;optgroup&gt;</h2>
+    <select id="com-grupo" class="mrr-dropdown">
+      <option value="">Selecione</option>
+      <optgroup label="Relevância">
+        <option value="relevancia">Relevância</option>
+        <option value="avaliacao">Melhor avaliação</option>
+      </optgroup>
+      <optgroup label="Localização" disabled>
+        <option value="distancia">Distância</option>
+      </optgroup>
+    </select>
+  </section>
+
+  <section>
+    <h2>Com busca</h2>
+    <select id="com-busca" class="mrr-dropdown" search data-search-placeholder="Filtrar...">
+      <option value="">Selecione...</option>
+      <option value="sao_paulo">São Paulo</option>
+      <option value="rio">Rio de Janeiro</option>
+      <option value="manaus">Manaus</option>
+      <option value="curitiba">Curitiba</option>
+    </select>
+  </section>
+
+  <section>
+    <h2>API pública</h2>
+    <button onclick="mrr_selected_dropdown('order','avaliacao')">Selecionar single</button>
+    <button onclick="mrr_selected_dropdown('filtros',['a','c'])">Selecionar múltiplo</button>
+    <button onclick="mrr_clear_dropdown('filtros')">Limpar múltiplo</button>
+    <button onclick="mrr_toggle_dropdown('order')">Abrir/fechar #order</button>
+    <button onclick="alert(mrr_get_selected_values('filtros'))">Ler valores múltiplo</button>
+  </section>
+
+  <section>
+    <h2>Eventos (<code>mrr:change</code>)</h2>
+    <div class="log" id="log"></div>
+  </section>
+
+  <!-- JS via CDN -->
+  <script src="https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/mrr-dropdown-min.js"></script>
+  <script>
+    document.addEventListener('mrr:change', e => {
+      const {dataId, values, labels} = e.detail;
+      const log = document.getElementById('log');
+      const line = document.createElement('div');
+      line.textContent = dataId+': '+values.join(', ')+' | '+labels.join(', ');
+      log.prepend(line);
+    });
+  </script>
+</body>
+</html>
