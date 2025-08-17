@@ -24,7 +24,7 @@ Inclua o CSS:
 ````
 ou
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/style-min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/style-min-v2.css" />
 ````
 
 Inclua o JS:
