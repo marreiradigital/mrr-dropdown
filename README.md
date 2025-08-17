@@ -21,14 +21,19 @@ Inclua o CSS:
 
 ```html
 <link rel="stylesheet" href="/path/style.css">
-ou https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/style-min.css
+````
+ou
+```html
+https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/style-min.css
 ````
 
 Inclua o JS:
 
 ```html
 <script src="/path/mrr-dropdown.js"></script>
+```
 ou
+```html
 https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/mrr-dropdown-min.js
 ```
 
