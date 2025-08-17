@@ -21,12 +21,15 @@ Inclua o CSS:
 
 ```html
 <link rel="stylesheet" href="/path/style.css">
+ou https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/style-min.css
 ````
 
 Inclua o JS:
 
 ```html
 <script src="/path/mrr-dropdown.js"></script>
+ou
+https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/mrr-dropdown-min.js
 ```
 
 O script inicializa automaticamente no `DOMContentLoaded`, convertendo todos os `select.mrr-dropdown`.
