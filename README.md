@@ -24,7 +24,7 @@ Inclua o CSS:
 ````
 ou
 ```html
-https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/style-min.css
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/style-min.css" />
 ````
 
 Inclua o JS:
@@ -34,7 +34,7 @@ Inclua o JS:
 ```
 ou
 ```html
-https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/mrr-dropdown-min.js
+<script src="https://cdn.jsdelivr.net/gh/marreiradigital/mrr-dropdown@main/mrr-dropdown-min.js"></script>
 ```
 
 O script inicializa automaticamente no `DOMContentLoaded`, convertendo todos os `select.mrr-dropdown`.
