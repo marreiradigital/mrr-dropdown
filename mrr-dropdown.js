@@ -1,5 +1,5 @@
 /* ============================
-   MRR DROPDOWN – SELECT ADAPTER (search + optgroup)
+   MRR DROPDOWN – SELECT ADAPTER (ARIA + A11Y + perf)
    ============================ */
 
 /* ---------- Utils ---------- */
@@ -20,6 +20,8 @@ function shouldUseSearch(native){
   const ds = (native.getAttribute('data-search')||'').toLowerCase();
   return native.hasAttribute('search') || ds === '1' || ds === 'true';
 }
+let mrr_uid = 0;
+function mrrUid(prefix='mrr-id'){ mrr_uid++; return `${prefix}-${Date.now().toString(36)}-${mrr_uid}`; }
 
 /* ---------- Search helpers (normalize + highlight) ---------- */
 function normalizeText(s){
@@ -111,7 +113,11 @@ function buildFittedText(selectedEl, labels, dd) {
 function isOpen(dd){ return dd.classList.contains('is-open'); }
 function isAnimating(dd){ return dd.classList.contains('is-animating'); }
 function isMultiple(dd){ return hasAttr(dd,'multiple'); }
-function getAllItems(dd){ return $$('.mrr-content-dropdown .item', dd); }
+function getList(dd){ return dd.querySelector('.mrr-list') || dd.querySelector('.mrr-content-dropdown'); }
+function getAllItems(dd){ return $$('.mrr-content-dropdown .item[role="option"]', dd); }
+function getVisibleItems(dd){
+  return getAllItems(dd).filter(i => !i.classList.contains('is-hidden') && i.offsetParent !== null);
+}
 function getSelectedItems(dd){ return getAllItems(dd).filter(i=>i.classList.contains('ativo')); }
 function getItemValue(item){
   if (!item || typeof item.getAttribute !== 'function') return null;
@@ -126,12 +132,114 @@ function labelsFromItems(items){
 }
 function setDataValor(dd, values){ dd.setAttribute('data-valor', values.join(',')); }
 
+/* ---------- A11y helpers ---------- */
+function ensureLiveRegion(dd){
+  let sr = dd.querySelector('.mrr-sr');
+  if (!sr){
+    sr = document.createElement('div');
+    sr.className = 'mrr-sr';
+    sr.setAttribute('aria-live','polite');
+    sr.setAttribute('role','status');
+    visHide(sr);
+    dd.appendChild(sr);
+  }
+  return sr;
+}
+function announce(dd, msg){
+  const sr = ensureLiveRegion(dd);
+  sr.textContent = msg || '';
+}
+function a11ySetNameFromLabel(comboboxEl, native){
+  // usa <label for="idDoSelect">
+  let lbl = null;
+  if (native.id) lbl = document.querySelector(`label[for="${native.id}"]`);
+  if (lbl){
+    if (!lbl.id) lbl.id = mrrUid('mrr-lbl');
+    comboboxEl.setAttribute('aria-labelledby', lbl.id);
+  } else {
+    const placeholder =
+      native.getAttribute('data-placeholder') ??
+      native.querySelector('option[value=""]')?.textContent?.trim() ??
+      'Selecione';
+    comboboxEl.setAttribute('aria-label', placeholder);
+  }
+}
+function a11yRefreshAriaSelected(dd){
+  getAllItems(dd).forEach(it=>{
+    it.setAttribute('aria-selected', it.classList.contains('ativo') ? 'true' : 'false');
+  });
+}
+function a11yEnsureIds(dd){
+  const list = getList(dd);
+  if (list && !list.id) list.id = mrrUid('mrr-list');
+  getAllItems(dd).forEach(it=>{ if(!it.id) it.id = mrrUid('mrr-opt'); });
+}
+function a11yToggleExpanded(dd, expanded){
+  const trigger = dd.querySelector('.mrr-input');
+  if (trigger) trigger.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+}
+function a11ySetActivedescendant(dd, itemOrNull){
+  const trigger = dd.querySelector('.mrr-input');
+  if (!trigger) return;
+  if (itemOrNull && itemOrNull.id) trigger.setAttribute('aria-activedescendant', itemOrNull.id);
+  else trigger.removeAttribute('aria-activedescendant');
+}
+
+/* ---------- Focus management ---------- */
+function focusOption(dd, item, scroll=true){
+  if (!item) return;
+  dd.__focusIndex = getVisibleItems(dd).indexOf(item);
+  getAllItems(dd).forEach(i=>i.classList.remove('is-focused'));
+  item.classList.add('is-focused');
+  a11ySetActivedescendant(dd, item);
+  if (scroll) {
+    const cnt = dd.querySelector('.mrr-content-dropdown');
+    if (cnt && typeof item.scrollIntoView === 'function'){
+      const b = cnt.getBoundingClientRect();
+      const r = item.getBoundingClientRect();
+      if (r.top < b.top || r.bottom > b.bottom) item.scrollIntoView({ block:'nearest' });
+    }
+  }
+}
+function focusFirst(dd){
+  const items = getVisibleItems(dd);
+  if (items.length) focusOption(dd, items[0]);
+}
+function focusLast(dd){
+  const items = getVisibleItems(dd);
+  if (items.length) focusOption(dd, items[items.length-1]);
+}
+function focusNext(dd){
+  const items = getVisibleItems(dd); if (!items.length) return;
+  const i = Math.max(0, (dd.__focusIndex ?? -1) + 1);
+  focusOption(dd, items[i % items.length]);
+}
+function focusPrev(dd){
+  const items = getVisibleItems(dd); if (!items.length) return;
+  let i = (dd.__focusIndex ?? items.length) - 1;
+  if (i < 0) i = items.length - 1;
+  focusOption(dd, items[i]);
+}
+function focusSelectedOrFirst(dd){
+  const sel = getSelectedItems(dd).find(it => !it.classList.contains('is-hidden'));
+  if (sel) focusOption(dd, sel); else focusFirst(dd);
+}
+
 /* ---------- Open/Close with animation ---------- */
 function openDropdown(dd){
   if (isOpen(dd) || isAnimating(dd) || dd.classList.contains('is-disabled')) return;
   const content = dd.querySelector('.mrr-content-dropdown'); if (!content) return;
   dd.classList.add('is-animating','is-opening');
   content.classList.remove('hidden');
+  a11yToggleExpanded(dd, true);
+  // foco inicial
+  const search = dd.querySelector('.mrr-search-input');
+  if (search) setTimeout(()=>{ try{ search.focus(); }catch(_){} }, 0);
+  else setTimeout(()=>{ try{ dd.querySelector('.mrr-input').focus(); }catch(_){} }, 0);
+  // define item focado
+  a11yEnsureIds(dd);
+  focusSelectedOrFirst(dd);
+
   content.addEventListener('animationend', function handler(e){
     if (e.target !== content) return;
     content.removeEventListener('animationend', handler);
@@ -143,6 +251,8 @@ function closeDropdown(dd){
   if (!isOpen(dd) || isAnimating(dd)) return;
   const content = dd.querySelector('.mrr-content-dropdown'); if (!content) return;
   dd.classList.add('is-animating','is-closing');
+  a11yToggleExpanded(dd, false);
+  a11ySetActivedescendant(dd, null);
   content.addEventListener('animationend', function handler(e){
     if (e.target !== content) return;
     content.removeEventListener('animationend', handler);
@@ -173,6 +283,8 @@ function updateSelectedVisual(dd){
   }
 
   setDataValor(dd, values);
+  a11yRefreshAriaSelected(dd);
+  announce(dd, labels.length ? `Selecionado: ${labels.join(', ')}` : 'Sem seleção');
 
   if (!dd.__fromNative) {
     syncSelectFromDropdown(dd, values); // mantém <select> nativo em sincronia (anti-loop abaixo)
@@ -188,6 +300,7 @@ function setActiveByValues(dd, values){
     const match = (val != null && S.has(val)) || S.has(label);
     item.classList[match ? 'add' : 'remove']('ativo');
   });
+  a11yRefreshAriaSelected(dd);
 }
 
 /* ---------- Events ---------- */
@@ -224,10 +337,47 @@ function handleDocClick(e){
     }
   });
 }
-function handleKeydown(e){
+function handleGlobalKeydown(e){
   if (e.key === 'Escape') $$('.mrr-dropdown.is-open').forEach(closeDropdown);
 }
 const onResize = debounce(()=> { $$('.mrr-dropdown[multiple]').forEach(updateSelectedVisual); }, 150);
+
+/* ---------- Keyboard on combobox trigger ---------- */
+function bindKeyboard(dd){
+  const trigger = dd.querySelector('.mrr-input');
+  if (!trigger) return;
+
+  trigger.addEventListener('keydown', (e)=>{
+    const k = e.key;
+    if (k === 'Tab') { closeDropdown(dd); return; }
+
+    // abre quando necessário
+    if (!isOpen(dd) && (k==='ArrowDown' || k==='ArrowUp' || k==='Enter' || k===' ')){
+      e.preventDefault();
+      openDropdown(dd);
+      return;
+    }
+
+    if (k==='ArrowDown'){ e.preventDefault(); focusNext(dd); }
+    else if (k==='ArrowUp'){ e.preventDefault(); focusPrev(dd); }
+    else if (k==='Home'){ e.preventDefault(); focusFirst(dd); }
+    else if (k==='End'){ e.preventDefault(); focusLast(dd); }
+    else if (k==='Enter'){
+      e.preventDefault();
+      const items = getVisibleItems(dd);
+      const idx = dd.__focusIndex ?? -1;
+      if (idx>=0 && items[idx]) onItemClick(dd, items[idx]);
+    }
+    else if (k===' '){
+      // espaço: em múltipla, alterna seleção; em simples, seleciona+fecha
+      e.preventDefault();
+      const items = getVisibleItems(dd);
+      const idx = dd.__focusIndex ?? -1;
+      if (idx>=0 && items[idx]) onItemClick(dd, items[idx]);
+    }
+    else if (k==='Escape'){ e.preventDefault(); closeDropdown(dd); }
+  });
+}
 
 /* ---------- Search binding ---------- */
 function bindSearch(dd){
@@ -235,12 +385,16 @@ function bindSearch(dd){
   const list  = dd.querySelector('.mrr-list') || dd.querySelector('.mrr-content-dropdown');
   if (!input || !list) return;
 
+  // acessibilidade do campo de busca
+  if (!input.getAttribute('aria-label')) input.setAttribute('aria-label','Pesquisar');
+  input.setAttribute('role','searchbox');
+
   function applyFilter(){
     const q  = input.value.trim();
     const nq = normalizeText(q);
 
     // filtra itens + highlight
-    const items = $$('.item', list);
+    const items = $$('.item[role="option"]', list);
     items.forEach(it => {
       const sp = it.querySelector('span');
       const base = sp?.dataset?.orig || getText(sp);
@@ -248,14 +402,23 @@ function bindSearch(dd){
       const hit  = nq === '' || norm.includes(nq);
 
       it.classList.toggle('is-hidden', !hit);
+      it.setAttribute('aria-hidden', hit ? 'false' : 'true');
+      it.tabIndex = hit ? -1 : -1; // itens não recebem foco direto; foco fica no combobox
       if (sp) sp.innerHTML = hit ? highlightLabel(base, q) : escapeHTML(base);
     });
 
     // esconde grupos vazios
     $$('.mrr-group', list).forEach(g => {
-      const anyVisible = $$('.item', g).some(it => !it.classList.contains('is-hidden'));
+      const anyVisible = $$('.item[role="option"]', g).some(it => !it.classList.contains('is-hidden'));
       g.style.display = anyVisible ? '' : 'none';
     });
+
+    // announce contagem
+    const visCount = getVisibleItems(dd).length;
+    announce(dd, visCount === 1 ? '1 opção' : `${visCount} opções`);
+
+    // reposiciona foco
+    focusSelectedOrFirst(dd);
   }
 
   input.addEventListener('input', applyFilter);
@@ -297,7 +460,8 @@ function syncDropdownFromSelect(native){
 function createItem(opt){
   const item = document.createElement('div');
   item.className = 'item';
-  if (opt.disabled) item.classList.add('is-disabled');
+  item.setAttribute('role','option');
+  if (opt.disabled) { item.classList.add('is-disabled'); item.setAttribute('aria-disabled','true'); }
   if (opt.value != null && String(opt.value).trim() !== '') item.setAttribute('value', opt.value);
   if (opt.selected) item.classList.add('ativo');
 
@@ -308,23 +472,30 @@ function createItem(opt){
 
   item.dataset.label = t.textContent;
   item.dataset.norm  = normalizeText(t.textContent);
+  item.id = mrrUid('mrr-opt');
+  item.setAttribute('aria-selected', opt.selected ? 'true' : 'false');
   return item;
 }
 function buildListFromNative(native){
   const frag = document.createDocumentFragment();
   const list = document.createElement('div');
   list.className = 'mrr-list';
+  list.setAttribute('role','listbox');
+  if (native.multiple) list.setAttribute('aria-multiselectable','true');
+  list.id = mrrUid('mrr-list');
 
   const children = Array.from(native.children);
   children.forEach(node => {
     if (node.tagName === 'OPTGROUP') {
       const g = document.createElement('div');
       g.className = 'mrr-group';
-      if (node.disabled) g.classList.add('is-disabled');
+      g.setAttribute('role','group');
+      if (node.disabled) { g.classList.add('is-disabled'); g.setAttribute('aria-disabled','true'); }
 
       const glabel = document.createElement('div');
       glabel.className = 'mrr-group-label';
       glabel.textContent = node.label || '';
+      g.setAttribute('aria-label', node.label || '');
 
       const gitems = document.createElement('div');
       gitems.className = 'mrr-group-items';
@@ -351,13 +522,17 @@ function buildListFromNative(native){
 function buildDropdownFromSelect(native){
   const dd   = document.createElement('div');
   dd.className = 'mrr-dropdown';
-  dd.setAttribute('role','listbox');
   dd.dataset.id = native.id || native.name || '';
   if (native.multiple) dd.setAttribute('multiple','');
   if (native.disabled) dd.classList.add('is-disabled');
 
-  // input (label + ícone)
+  // input (label + ícone) vira combobox
   const input = document.createElement('div'); input.className='mrr-input';
+  input.setAttribute('role','combobox');
+  input.setAttribute('tabindex','0');
+  input.setAttribute('aria-haspopup','listbox');
+  input.setAttribute('aria-expanded','false');
+
   const span  = document.createElement('span'); span.className='valor-selected placeholder';
   const placeholder =
     native.getAttribute('data-placeholder') ??
@@ -366,6 +541,8 @@ function buildDropdownFromSelect(native){
   span.textContent = placeholder;
   const icon  = document.createElement('div'); icon.className='icon-down'; icon.textContent = '▾';
   input.appendChild(span); input.appendChild(icon);
+
+  a11ySetNameFromLabel(input, native);
 
   // content
   const content = document.createElement('div');
@@ -384,8 +561,12 @@ function buildDropdownFromSelect(native){
     s.appendChild(si); content.appendChild(s);
   }
 
-  // lista (itens + optgroups)
+  // lista (itens + optgroups) com role="listbox"
   content.appendChild(buildListFromNative(native));
+
+  // vincula combobox -> listbox
+  const list = content.querySelector('.mrr-list');
+  if (list) input.setAttribute('aria-controls', list.id);
 
   dd.appendChild(input); dd.appendChild(content);
 
@@ -395,6 +576,7 @@ function buildDropdownFromSelect(native){
   // inicia
   bindOneDropdown(dd);
   if (shouldUseSearch(native)) bindSearch(dd);
+  bindKeyboard(dd);
   return dd;
 }
 
@@ -411,41 +593,52 @@ window.mrr_render_itens = function(id, items){
   const content = dd.querySelector('.mrr-content-dropdown'); if (!content) return;
 
   let list = content.querySelector('.mrr-list');
-  if (!list) { list = document.createElement('div'); list.className='mrr-list'; content.appendChild(list); }
+  if (!list) { list = document.createElement('div'); list.className='mrr-list'; list.setAttribute('role','listbox'); content.appendChild(list); }
   list.innerHTML = '';
+  if (isMultiple(dd)) list.setAttribute('aria-multiselectable','true');
 
   (items||[]).forEach(o=>{
     if (o && Array.isArray(o.items)) {
-      const g = document.createElement('div'); g.className='mrr-group';
-      if (o.disabled) g.classList.add('is-disabled');
+      const g = document.createElement('div'); g.className='mrr-group'; g.setAttribute('role','group');
+      if (o.disabled) { g.classList.add('is-disabled'); g.setAttribute('aria-disabled','true'); }
       const gl = document.createElement('div'); gl.className='mrr-group-label'; gl.textContent = o.label || '';
+      g.setAttribute('aria-label', o.label || '');
       const gi = document.createElement('div'); gi.className='mrr-group-items';
       (o.items||[]).forEach(it=>{
-        const div = document.createElement('div'); div.className='item';
-        if (o.disabled || it.disabled) div.classList.add('is-disabled');
+        const div = document.createElement('div'); div.className='item'; div.setAttribute('role','option');
+        if (o.disabled || it.disabled) { div.classList.add('is-disabled'); div.setAttribute('aria-disabled','true'); }
         if (it.value != null && String(it.value).trim() !== '') div.setAttribute('value', it.value);
         const span = document.createElement('span'); span.textContent = String(it.label||'');
         span.dataset.orig = span.textContent;
         div.appendChild(span);
         div.dataset.label = span.textContent;
         div.dataset.norm  = normalizeText(span.textContent);
+        div.id = mrrUid('mrr-opt');
+        div.setAttribute('aria-selected','false');
         gi.appendChild(div);
       });
       g.appendChild(gl); g.appendChild(gi); list.appendChild(g);
     } else {
-      const div = document.createElement('div'); div.className='item';
-      if (o.disabled) div.classList.add('is-disabled');
+      const div = document.createElement('div'); div.className='item'; div.setAttribute('role','option');
+      if (o.disabled) { div.classList.add('is-disabled'); div.setAttribute('aria-disabled','true'); }
       if (o.value != null && String(o.value).trim() !== '') div.setAttribute('value', o.value);
       const span = document.createElement('span'); span.textContent = String(o.label||'');
       span.dataset.orig = span.textContent;
       div.appendChild(span);
       div.dataset.label = span.textContent;
       div.dataset.norm  = normalizeText(span.textContent);
+      div.id = mrrUid('mrr-opt');
+      div.setAttribute('aria-selected','false');
       list.appendChild(div);
     }
   });
 
+  // re-vincula aria-controls se necessário
+  const trigger = dd.querySelector('.mrr-input');
+  if (trigger && list.id) trigger.setAttribute('aria-controls', list.id);
+
   updateSelectedVisual(dd);
+  a11yEnsureIds(dd);
 };
 window.mrr_get_selected_values = function(id){
   const dd = document.querySelector(`.mrr-dropdown[data-id="${id}"]`); if (!dd) return [];
@@ -477,10 +670,11 @@ function bindOneDropdown(dd){
 
   inp.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); toggleDropdown(dd); });
   cnt.addEventListener('click', e => {
-    const item = e.target.closest('.item'); if (!item || !cnt.contains(item)) return;
+    const item = e.target.closest('.item[role="option"]'); if (!item || !cnt.contains(item)) return;
     e.preventDefault(); onItemClick(dd, item);
   });
 
+  // ResizeObserver para múltipla
   if ('ResizeObserver' in window && isMultiple(dd)) {
     new ResizeObserver(()=>updateSelectedVisual(dd)).observe(inp);
   }
@@ -489,6 +683,9 @@ function bindOneDropdown(dd){
   const values = raw ? raw.split(',').map(v=>v.trim()).filter(Boolean) : [];
   setActiveByValues(dd, values);
   updateSelectedVisual(dd);
+
+  // A11y ids e atributos dinâmicos
+  a11yEnsureIds(dd);
 }
 function initMrrDropdownsFromSelects(){
   document.addEventListener('dragstart', e => {
@@ -499,6 +696,7 @@ function initMrrDropdownsFromSelects(){
     if (native.__mrrDropdown) return;
 
     const dd = buildDropdownFromSelect(native);
+    // cola depois do select original
     native.parentNode.insertBefore(dd, native.nextSibling);
     visHide(native);
 
@@ -514,7 +712,7 @@ function initMrrDropdownsFromSelects(){
   });
 
   document.addEventListener('click', handleDocClick);
-  document.addEventListener('keydown', handleKeydown);
+  document.addEventListener('keydown', handleGlobalKeydown);
   window.addEventListener('resize', onResize);
 }
 
